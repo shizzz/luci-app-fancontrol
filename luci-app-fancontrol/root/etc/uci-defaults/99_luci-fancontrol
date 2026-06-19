@@ -1,0 +1,11 @@
+#!/bin/sh
+# Create default fancontrol UCI configuration on first boot.
+
+[ -f /etc/config/fancontrol ] && exit 0
+
+cat > /etc/config/fancontrol <<'EOF'
+config globals 'globals'
+	option force '0'
+EOF
+
+exit 0

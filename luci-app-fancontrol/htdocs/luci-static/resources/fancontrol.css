@@ -1,0 +1,111 @@
+.cbi-section-fancontrol-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	gap: 1em;
+	margin-top: 1em;
+}
+
+.cbi-section-fancontrol-card {
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	padding: 1em;
+	background: #fff;
+}
+
+.cbi-section-fancontrol-card h3 {
+	margin: 0 0 0.75em 0;
+}
+
+.cbi-section-fancontrol-metrics {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.5em 1em;
+	margin-bottom: 0.75em;
+}
+
+.cbi-section-fancontrol-metrics dt {
+	font-weight: bold;
+	margin: 0;
+}
+
+.cbi-section-fancontrol-metrics dd {
+	margin: 0 0 0.5em 0;
+}
+
+.cbi-section-fancontrol-chart {
+	width: 100%;
+	height: 80px;
+	border: 1px solid #ddd;
+	border-radius: 3px;
+	display: block;
+}
+
+.cbi-section-fancontrol-legend {
+	display: flex;
+	gap: 1em;
+	font-size: 0.85em;
+	margin-top: 0.35em;
+	color: #666;
+}
+
+.cbi-section-fancontrol-legend span::before {
+	content: '';
+	display: inline-block;
+	width: 0.75em;
+	height: 0.75em;
+	margin-right: 0.35em;
+	border-radius: 2px;
+	vertical-align: middle;
+}
+
+.cbi-section-fancontrol-legend .temp::before {
+	background: #c0392b;
+}
+
+.cbi-section-fancontrol-legend .pwm::before {
+	background: #2980b9;
+}
+
+.cbi-section-fancontrol-status-enabled {
+	color: #27ae60;
+	font-weight: bold;
+}
+
+.cbi-section-fancontrol-status-disabled {
+	color: #999;
+}
+
+.cbi-section-fancontrol-service-status.running {
+	color: #27ae60;
+	font-weight: bold;
+}
+
+.cbi-section-fancontrol-service-status.stopped {
+	color: #c0392b;
+	font-weight: bold;
+}
+
+.cbi-section-fancontrol-wizard-step {
+	margin-bottom: 1.5em;
+}
+
+.cbi-section-fancontrol-path-preview {
+	font-family: monospace;
+	font-size: 0.9em;
+	word-break: break-all;
+}
+
+.cbi-section-fancontrol-validation {
+	margin-top: 0.75em;
+}
+
+.cbi-section-fancontrol-validation .warning {
+	color: #d35400;
+}
+
+.cbi-section-fancontrol-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	margin-top: 0.75em;
+}

@@ -1,0 +1,37 @@
+name: Develop Build
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build:
+    name: aarch64 build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: aarch64
+          PACKAGES: fancontrol luci-app-fancontrol
+
+      - name: Upload IPK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-ipk
+          path: bin/packages/**/packages/*.ipk
+          if-no-files-found: warn
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-apk
+          path: bin/packages/**/packages/*.apk
+          if-no-files-found: warn

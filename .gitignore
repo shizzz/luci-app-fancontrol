@@ -1,0 +1,4 @@
+bin/
+logs/
+*.ipk
+*.apk

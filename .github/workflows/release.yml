@@ -1,0 +1,96 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    name: Discover architectures
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build architecture matrix from upstream release assets
+        id: set-matrix
+        run: |
+          set -e
+          VERSION="$(grep '^FANCONTROL_UPSTREAM_VERSION' fancontrol/Makefile | head -n1 | cut -d: -f2 | tr -d ' ')"
+          API="https://api.github.com/repos/shizzz/openwrt-fancontrol/releases/tags/v${VERSION}"
+          ASSETS="$(curl -fsSL "$API" | jq -r '.assets[].name' | grep '^openwrt-fancontrol-linux-.*\.tar\.gz$' || true)"
+
+          if [ -z "$ASSETS" ]; then
+            echo "No release assets found for openwrt-fancontrol v${VERSION}" >&2
+            exit 1
+          fi
+
+          ARCHS=""
+          for asset in $ASSETS; do
+            suffix="${asset#openwrt-fancontrol-linux-}"
+            suffix="${suffix%.tar.gz}"
+            sdk_arch="$(sh scripts/sdk-arch-for-asset.sh "$suffix")"
+            ARCHS="${ARCHS} ${sdk_arch}"
+          done
+
+          JSON="$(printf '%s\n' $ARCHS | awk 'NF' | jq -R . | jq -s -c '{arch:.}')"
+          echo "matrix=${JSON}" >> "$GITHUB_OUTPUT"
+          echo "Discovered matrix: ${JSON}"
+
+  build:
+    name: ${{ matrix.arch }} build
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}
+          PACKAGES: fancontrol luci-app-fancontrol
+
+      - name: Upload IPK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}-ipk
+          path: bin/packages/**/packages/*.ipk
+          if-no-files-found: warn
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arch }}-apk
+          path: bin/packages/**/packages/*.apk
+          if-no-files-found: warn
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**
+          generate_release_notes: true

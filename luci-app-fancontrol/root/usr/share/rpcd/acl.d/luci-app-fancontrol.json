@@ -1,0 +1,22 @@
+{
+	"luci-app-fancontrol": {
+		"description": "Grant access to LuCI FanControl configuration and monitoring",
+		"read": {
+			"uci": [ "fancontrol" ],
+			"file": {
+				"/sys/class/thermal/": [ "list", "read", "stat" ],
+				"/sys/class/hwmon/": [ "list", "read", "stat" ]
+			},
+			"ubus": {
+				"file": [ "list", "read", "stat" ],
+				"rc": [ "list" ]
+			}
+		},
+		"write": {
+			"uci": [ "fancontrol" ],
+			"ubus": {
+				"rc": [ "init" ]
+			}
+		}
+	}
+}
