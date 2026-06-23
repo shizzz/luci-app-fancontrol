@@ -16,18 +16,24 @@ if [ -z "$OWRT_ARCH" ] || [ -z "$REPO" ] || [ -z "$CACHE_DIR" ]; then
 	exit 1
 fi
 
-fetch() {
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+FEED_CACHE_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)/files/.upstream-release"
+
+. "$SCRIPT_DIR/github-fetch.sh"
+
+download() {
+	url="$1"
+	dest="$2"
+
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL "$1"
+		github_download "$url" "$dest"
 	elif command -v wget >/dev/null 2>&1; then
-		wget -qO- "$1"
+		wget -qO "$dest" "$url"
 	else
 		echo "Neither curl nor wget available" >&2
 		exit 1
 	fi
 }
-
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 
 VERSION="$(sh "$SCRIPT_DIR/latest-fancontrol-release.sh" "$REPO")"
 
@@ -46,8 +52,11 @@ mkdir -p "$CACHE_DIR"
 HASHES_FILE="$CACHE_DIR/openwrt-fancontrol-hashes-v${VERSION}.mk"
 HASHES_URL="https://github.com/${REPO}/releases/download/v${VERSION}/hashes.mk"
 
-if [ ! -f "$HASHES_FILE" ]; then
-	fetch "$HASHES_URL" > "$HASHES_FILE.tmp" || {
+if [ -f "$FEED_CACHE_DIR/hashes.mk" ] && [ -f "$FEED_CACHE_DIR/version" ] \
+	&& [ "$(cat "$FEED_CACHE_DIR/version")" = "$VERSION" ]; then
+	cp "$FEED_CACHE_DIR/hashes.mk" "$HASHES_FILE"
+elif [ ! -f "$HASHES_FILE" ]; then
+	download "$HASHES_URL" "$HASHES_FILE.tmp" || {
 		rm -f "$HASHES_FILE.tmp"
 		echo "Unable to download ${HASHES_URL}" >&2
 		exit 1

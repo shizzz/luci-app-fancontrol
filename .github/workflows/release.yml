@@ -21,11 +21,16 @@ jobs:
 
       - name: Build architecture matrix from upstream release assets
         id: set-matrix
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -e
           VERSION="$(sh fancontrol/scripts/latest-fancontrol-release.sh shizzz/openwrt-fancontrol)"
           API="https://api.github.com/repos/shizzz/openwrt-fancontrol/releases/tags/v${VERSION}"
-          ASSETS="$(curl -fsSL "$API" | jq -r '.assets[].name' | grep '^openwrt-fancontrol-linux-.*\.tar\.gz$' || true)"
+          ASSETS="$(curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "$API" | jq -r '.assets[].name' | grep '^openwrt-fancontrol-linux-.*\.tar\.gz$' || true)"
 
           if [ -z "$ASSETS" ]; then
             echo "No release assets found for openwrt-fancontrol v${VERSION}" >&2
@@ -67,6 +72,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Prefetch fancontrol upstream metadata
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: sh fancontrol/scripts/prefetch-fancontrol-release.sh shizzz/openwrt-fancontrol
 
       - name: Build packages
         uses: openwrt/gh-action-sdk@main

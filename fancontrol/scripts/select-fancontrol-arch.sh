@@ -19,19 +19,27 @@ case "$TAG" in
 	v*) TAG="${TAG#v}" ;;
 esac
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+CACHE_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)/files/.upstream-release"
 API_URL="https://api.github.com/repos/shizzz/openwrt-fancontrol/releases/tags/v${TAG}"
 
-if command -v curl >/dev/null 2>&1; then
-	JSON="$(curl -fsSL "$API_URL")"
-elif command -v wget >/dev/null 2>&1; then
-	JSON="$(wget -qO- "$API_URL")"
+if [ -f "$CACHE_DIR/hashes.mk" ] && [ -f "$CACHE_DIR/version" ] \
+	&& [ "$(cat "$CACHE_DIR/version")" = "$TAG" ]; then
+	ASSETS="$(sed -n 's/^PKG_HASH_linux-\([^:]*\):=.*/\1/p' "$CACHE_DIR/hashes.mk" | sort -u)"
 else
-	echo "Neither curl nor wget available" >&2
-	exit 1
-fi
+	. "$SCRIPT_DIR/github-fetch.sh"
 
-# Extract asset suffixes from release filenames.
-ASSETS="$(printf '%s' "$JSON" | sed -n 's/.*openwrt-fancontrol-linux-\([^"]*\)\.tar\.gz.*/\1/p' | sort -u)"
+	if command -v curl >/dev/null 2>&1; then
+		JSON="$(github_curl "$API_URL")"
+	elif command -v wget >/dev/null 2>&1; then
+		JSON="$(wget -qO- "$API_URL")"
+	else
+		echo "Neither curl nor wget available" >&2
+		exit 1
+	fi
+
+	ASSETS="$(printf '%s' "$JSON" | sed -n 's/.*openwrt-fancontrol-linux-\([^"]*\)\.tar\.gz.*/\1/p' | sort -u)"
+fi
 
 if [ -z "$ASSETS" ]; then
 	echo "No openwrt-fancontrol release assets found for tag v${TAG}" >&2

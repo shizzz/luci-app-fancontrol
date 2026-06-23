@@ -7,9 +7,18 @@
 set -e
 
 REPO="${1:-shizzz/openwrt-fancontrol}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+CACHE_VERSION="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)/files/.upstream-release/version"
+
+if [ -f "$CACHE_VERSION" ]; then
+	cat "$CACHE_VERSION"
+	exit 0
+fi
+
+. "$SCRIPT_DIR/github-fetch.sh"
 
 if command -v curl >/dev/null 2>&1; then
-	JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")"
+	JSON="$(github_curl "https://api.github.com/repos/${REPO}/releases/latest")"
 elif command -v wget >/dev/null 2>&1; then
 	JSON="$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest")"
 else
