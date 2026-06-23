@@ -22,7 +22,7 @@ jobs:
         id: set-matrix
         run: |
           set -e
-          VERSION="$(grep '^FANCONTROL_UPSTREAM_VERSION' fancontrol/Makefile | head -n1 | cut -d: -f2 | tr -d ' ')"
+          VERSION="$(sh scripts/latest-fancontrol-release.sh shizzz/openwrt-fancontrol)"
           API="https://api.github.com/repos/shizzz/openwrt-fancontrol/releases/tags/v${VERSION}"
           ASSETS="$(curl -fsSL "$API" | jq -r '.assets[].name' | grep '^openwrt-fancontrol-linux-.*\.tar\.gz$' || true)"
 

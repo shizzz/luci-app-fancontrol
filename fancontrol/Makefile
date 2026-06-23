@@ -1,26 +1,28 @@
 include $(TOPDIR)/rules.mk
 
+FANCONTROL_UPSTREAM_REPO:=shizzz/openwrt-fancontrol
+
+FANCONTROL_RELEASE_MK:=$(shell sh $(CURDIR)/../scripts/resolve-fancontrol-release.sh $(ARCH) $(FANCONTROL_UPSTREAM_REPO) $(DL_DIR))
+ifeq ($(FANCONTROL_RELEASE_MK),)
+  $(error Unable to resolve latest fancontrol release for ARCH=$(ARCH))
+endif
+include $(FANCONTROL_RELEASE_MK)
+
 PKG_NAME:=fancontrol
-PKG_VERSION:=0.0.1
+PKG_VERSION:=$(FANCONTROL_VERSION)
 PKG_RELEASE:=1
 
 PKG_MAINTAINER:=LuCI FanControl Contributors
 PKG_LICENSE:=GPL-2.0-or-later
 
-FANCONTROL_UPSTREAM_VERSION:=0.0.2
-FANCONTROL_UPSTREAM_REPO:=shizzz/openwrt-fancontrol
-
 PKGARCH:=$(ARCH)
 
 include $(INCLUDE_DIR)/package.mk
 
-FANCONTROL_ASSET_ARCH:=$(shell $(CURDIR)/../scripts/select-fancontrol-arch.sh $(ARCH) v$(FANCONTROL_UPSTREAM_VERSION))
-FANCONTROL_ASSET:=openwrt-fancontrol-linux-$(FANCONTROL_ASSET_ARCH).tar.gz
-FANCONTROL_URL:=https://github.com/$(FANCONTROL_UPSTREAM_REPO)/releases/download/v$(FANCONTROL_UPSTREAM_VERSION)/$(FANCONTROL_ASSET)
-
 define Download/fancontrol
   FILE:=$(FANCONTROL_ASSET)
   URL:=$(FANCONTROL_URL)
+  HASH:=$(FANCONTROL_HASH)
 endef
 $(eval $(call Download,fancontrol))
 
@@ -39,7 +41,7 @@ endef
 define Build/Prepare
 	$(INSTALL_DIR) $(PKG_BUILD_DIR)
 	tar -xzf $(DL_DIR)/$(FANCONTROL_ASSET) -C $(PKG_BUILD_DIR)
-	$(FIND) $(PKG_BUILD_DIR) -name openwrt-fancontrol -type f -exec $(CP) {} $(PKG_BUILD_DIR)/openwrt-fancontrol \;
+	$(CP) $(PKG_BUILD_DIR)/openwrt-fancontrol-linux-$(FANCONTROL_ASSET_ARCH) $(PKG_BUILD_DIR)/openwrt-fancontrol
 endef
 
 define Build/Compile

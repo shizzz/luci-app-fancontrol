@@ -60,9 +60,7 @@ make package/fancontrol/compile V=s
 make package/luci-app-fancontrol/compile V=s
 ```
 
-The `fancontrol` package resolves the correct upstream release asset for the selected target `ARCH` using `scripts/select-fancontrol-arch.sh`.
-
-Upstream binary version is controlled by `FANCONTROL_UPSTREAM_VERSION` in `fancontrol/Makefile`.
+The `fancontrol` package resolves the latest upstream release, downloads `hashes.mk`, and selects the correct binary for the target `ARCH` using `scripts/resolve-fancontrol-release.sh`.
 
 ## GitHub Actions
 
