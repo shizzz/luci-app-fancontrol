@@ -5,10 +5,21 @@ on:
     branches:
       - develop
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    name: aarch64 build
+    name: ${{ matrix.label }} (${{ matrix.sdk }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: snapshot
+            sdk: aarch64_cortex-a53-main
+          - label: openwrt-24.10
+            sdk: aarch64_cortex-a53-openwrt-24.10
 
     steps:
       - name: Checkout
@@ -19,19 +30,48 @@ jobs:
       - name: Build packages
         uses: openwrt/gh-action-sdk@main
         env:
-          ARCH: aarch64
+          ARCH: ${{ matrix.sdk }}
+          FEEDNAME: fancontrol
           PACKAGES: fancontrol luci-app-fancontrol
 
-      - name: Upload IPK artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: aarch64-ipk
-          path: bin/packages/**/packages/*.ipk
-          if-no-files-found: warn
+      - name: Verify packages were built
+        env:
+          FEEDNAME: fancontrol
+        run: sh .github/scripts/verify-built-packages.sh
 
-      - name: Upload APK artifacts
+      - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: aarch64-apk
-          path: bin/packages/**/packages/*.apk
-          if-no-files-found: warn
+          name: ${{ matrix.label }}-packages
+          path: |
+            bin/packages/**/fancontrol/fancontrol*
+            bin/packages/**/fancontrol/luci-app-fancontrol*
+          if-no-files-found: error
+
+  release:
+    name: Publish continuous pre-release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Flatten package files for release assets
+        run: |
+          set -e
+          mkdir -p dist/release
+          find dist -type f \( -name '*.ipk' -o -name '*.apk' \) -exec cp {} dist/release/ \;
+          ls -la dist/release/
+
+      - name: Publish continuous pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous build
+          prerelease: true
+          files: dist/release/*
+          generate_release_notes: true

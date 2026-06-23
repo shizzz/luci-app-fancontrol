@@ -15,8 +15,7 @@ const callRcList = rpc.declare({
 const callRcInit = rpc.declare({
 	object: 'rc',
 	method: 'init',
-	params: [ 'name', 'action' ],
-	expect: { result: false }
+	params: [ 'name', 'action' ]
 });
 
 const SERVICE_NAME = 'fancontrol';
@@ -30,8 +29,8 @@ return view.extend({
 	},
 
 	handleAction(action) {
-		return callRcInit(SERVICE_NAME, action).then(function(result) {
-			if (result !== true)
+		return callRcInit(SERVICE_NAME, action).then(function(ret) {
+			if (ret)
 				throw new Error(_('Command failed'));
 		}).then(function() {
 			window.location.reload();
@@ -71,10 +70,12 @@ return view.extend({
 				E('div', { 'class': 'cbi-section-fancontrol-actions' }, [
 					E('button', {
 						'class': 'btn cbi-button-apply',
+						'disabled': running ? 'disabled' : null,
 						'click': ui.createHandlerFn(view, 'handleAction', 'start')
 					}, [_('Start')]),
 					E('button', {
 						'class': 'btn cbi-button-reset',
+						'disabled': !running ? 'disabled' : null,
 						'click': ui.createHandlerFn(view, 'handleAction', 'stop')
 					}, [_('Stop')]),
 					E('button', {
