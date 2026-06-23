@@ -71,6 +71,18 @@ detect_arch() {
 	exit 1
 }
 
+# Map OpenWrt DISTRIB_ARCH to release asset labels (arm64, amd64, ...).
+release_label_for_arch() {
+	case "$1" in
+		x86_64) printf '%s\n' "amd64" ;;
+		aarch64_cortex-a53|aarch64_*) printf '%s\n' "arm64" ;;
+		arm_cortex-a9|arm_*) printf '%s\n' "armv7" ;;
+		mipsel_24kc|mipsel_*) printf '%s\n' "mipsel" ;;
+		mips64el_mips64r2|mips64el_*) printf '%s\n' "mips64el" ;;
+		*) printf '%s\n' "$1" ;;
+	esac
+}
+
 release_tag() {
 	printf '%s' "$1" \
 		| sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
@@ -82,7 +94,7 @@ release_asset_names() {
 		| sed 's/.*"assets":\[//; s/\],"body".*//' \
 		| tr '{' '\n' \
 		| sed -n 's/.*"name": "\([^"]*\)".*/\1/p' \
-		| grep -E '\.(ipk|apk)$' || true
+		| grep -E '\.tar\.gz$' || true
 }
 
 release_download_url() {
@@ -91,40 +103,32 @@ release_download_url() {
 	printf '%s\n' "https://github.com/${REPO}/releases/download/${tag}/${asset_name}"
 }
 
-find_fan_package_name() {
+asset_list_has() {
+	needle="$1"
+	shift
+
 	for name in "$@"; do
-		case "$name" in
-			fancontrol_*_"${ARCH}".ipk)
-				[ "$EXT" = "ipk" ] || continue
-				printf '%s\n' "$name"
-				return 0
-				;;
-			fancontrol-*.apk)
-				[ "$EXT" = "apk" ] || continue
-				printf '%s\n' "$name"
-				return 0
-				;;
-		esac
+		if [ "$name" = "$needle" ]; then
+			return 0
+		fi
 	done
 	return 1
 }
 
-find_luci_package_name() {
-	for name in "$@"; do
-		case "$name" in
-			luci-app-fancontrol_*_all.ipk)
-				[ "$EXT" = "ipk" ] || continue
-				printf '%s\n' "$name"
-				return 0
-				;;
-			luci-app-fancontrol-*.apk)
-				[ "$EXT" = "apk" ] || continue
-				printf '%s\n' "$name"
-				return 0
-				;;
-		esac
-	done
-	return 1
+find_packages_in_dir() {
+	dir="$1"
+
+	if [ "$EXT" = "apk" ]; then
+		FAN_PKG="$(find "$dir" -maxdepth 1 -name 'fancontrol-*.apk' | head -n1)"
+		LUCI_PKG="$(find "$dir" -maxdepth 1 -name 'luci-app-fancontrol-*.apk' | head -n1)"
+	else
+		FAN_PKG="$(find "$dir" -maxdepth 1 -name "fancontrol_*_${ARCH}.ipk" | head -n1)"
+		LUCI_PKG="$(find "$dir" -maxdepth 1 -name 'luci-app-fancontrol_*_all.ipk' | head -n1)"
+	fi
+
+	if [ -z "$FAN_PKG" ] || [ -z "$LUCI_PKG" ]; then
+		return 1
+	fi
 }
 
 install_packages() {
@@ -143,6 +147,8 @@ install_packages() {
 
 PKG_MGR="$(detect_pkg_mgr)"
 ARCH="$(detect_arch)"
+LABEL="$(release_label_for_arch "$ARCH")"
+BUNDLE_NAME="fancontrol-${LABEL}-packages.tar.gz"
 
 case "$PKG_MGR" in
 	opkg) EXT=ipk ;;
@@ -159,14 +165,12 @@ fi
 # shellcheck disable=SC2086
 set -- $(release_asset_names "$JSON")
 
-FAN_NAME="$(find_fan_package_name "$@")" || FAN_NAME=""
-LUCI_NAME="$(find_luci_package_name "$@")" || LUCI_NAME=""
-
-if [ -z "$FAN_NAME" ] || [ -z "$LUCI_NAME" ]; then
-	echo "No ${EXT} packages for architecture '${ARCH}' in latest release ${TAG}." >&2
+if ! asset_list_has "$BUNDLE_NAME" "$@"; then
+	echo "No package bundle '${BUNDLE_NAME}' in latest release ${TAG}." >&2
+	echo "OpenWrt arch: ${ARCH}" >&2
 	echo "Check https://github.com/${REPO}/releases/latest" >&2
 	if [ "$#" -gt 0 ]; then
-		echo "Available package assets:" >&2
+		echo "Available bundles:" >&2
 		for name in "$@"; do
 			echo "  - $name" >&2
 		done
@@ -177,16 +181,23 @@ fi
 mkdir -p "$TMPDIR"
 trap 'rm -rf "$TMPDIR"' EXIT INT HUP TERM
 
-FAN_PKG="$TMPDIR/fancontrol.${EXT}"
-LUCI_PKG="$TMPDIR/luci-app-fancontrol.${EXT}"
+BUNDLE="$TMPDIR/bundle.tar.gz"
+EXTRACT_DIR="$TMPDIR/bundle"
 
 echo "Release: ${TAG}"
-echo "Architecture: ${ARCH}"
+echo "Architecture: ${ARCH} (${LABEL})"
 echo "Package manager: ${PKG_MGR}"
-echo "Downloading fancontrol package..."
-download "$(release_download_url "$TAG" "$FAN_NAME")" "$FAN_PKG"
-echo "Downloading luci-app-fancontrol package..."
-download "$(release_download_url "$TAG" "$LUCI_NAME")" "$LUCI_PKG"
+echo "Downloading ${BUNDLE_NAME}..."
+download "$(release_download_url "$TAG" "$BUNDLE_NAME")" "$BUNDLE"
+mkdir -p "$EXTRACT_DIR"
+tar -xzf "$BUNDLE" -C "$EXTRACT_DIR"
+
+if ! find_packages_in_dir "$EXTRACT_DIR"; then
+	echo "Bundle ${BUNDLE_NAME} did not contain fancontrol + luci-app-fancontrol (.${EXT})." >&2
+	ls -la "$EXTRACT_DIR" >&2 || true
+	exit 1
+fi
+
 install_packages "$FAN_PKG" "$LUCI_PKG"
 
 if [ -x /etc/init.d/fancontrol ]; then
