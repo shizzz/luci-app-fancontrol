@@ -13,12 +13,13 @@ set -e
 
 REPO="${FANCONTROL_REPO:-shizzz/luci-app-fancontrol}"
 TMPDIR="${TMPDIR:-/tmp/fancontrol-install.$$}"
+DOWNLOAD_TIMEOUT="${FANCONTROL_DOWNLOAD_TIMEOUT:-120}"
 
 fetch() {
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL "$1"
+		curl -fsSL --max-time "$DOWNLOAD_TIMEOUT" "$1"
 	elif command -v wget >/dev/null 2>&1; then
-		wget -qO- "$1"
+		wget -qO- --timeout="$DOWNLOAD_TIMEOUT" "$1"
 	else
 		echo "Install curl or wget first." >&2
 		exit 1
@@ -28,10 +29,12 @@ fetch() {
 download() {
 	url="$1"
 	dest="$2"
+
+	echo "  $url"
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL -o "$dest" "$url"
+		curl -fL --max-time "$DOWNLOAD_TIMEOUT" -o "$dest" "$url"
 	elif command -v wget >/dev/null 2>&1; then
-		wget -qO "$dest" "$url"
+		wget -q --timeout="$DOWNLOAD_TIMEOUT" -O "$dest" "$url"
 	else
 		echo "Install curl or wget first." >&2
 		exit 1
@@ -68,129 +71,60 @@ detect_arch() {
 	exit 1
 }
 
-# Map OpenWrt DISTRIB_ARCH to tagged-release bundle labels (arm64, amd64, ...).
-release_label_for_arch() {
-	case "$1" in
-		x86_64) printf '%s\n' "amd64" ;;
-		aarch64_cortex-a53|aarch64_*) printf '%s\n' "arm64" ;;
-		arm_cortex-a9|arm_*) printf '%s\n' "armv7" ;;
-		mipsel_24kc|mipsel_*) printf '%s\n' "mipsel" ;;
-		mips64el_mips64r2|mips64el_*) printf '%s\n' "mips64el" ;;
-		*) printf '%s\n' "$1" ;;
-	esac
+release_tag() {
+	printf '%s' "$1" \
+		| sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+		| head -n1
 }
 
-release_usable() {
-	json="$1"
-	label="$(release_label_for_arch "$ARCH")"
-
-	if printf '%s' "$json" | grep -qE "fancontrol_[^\"]+_${ARCH}\\.ipk"; then
-		return 0
-	fi
-	if [ "$EXT" = "apk" ] && printf '%s' "$json" | grep -qE 'fancontrol-[^"]+\.apk'; then
-		return 0
-	fi
-	if printf '%s' "$json" | grep -qE "fancontrol-${ARCH}-packages\\.tar\\.gz"; then
-		return 0
-	fi
-	if printf '%s' "$json" | grep -qE "fancontrol-${label}-packages\\.tar\\.gz"; then
-		return 0
-	fi
-	return 1
+release_asset_names() {
+	printf '%s' "$1" \
+		| sed 's/.*"assets":\[//; s/\],"body".*//' \
+		| tr '{' '\n' \
+		| sed -n 's/.*"name": "\([^"]*\)".*/\1/p' \
+		| grep -E '\.(ipk|apk)$' || true
 }
 
-release_json() {
-	json=""
-	url=""
+release_download_url() {
+	tag="$1"
+	asset_name="$2"
+	printf '%s\n' "https://github.com/${REPO}/releases/download/${tag}/${asset_name}"
+}
 
-	for tag in latest continuous; do
-		case "$tag" in
-			latest)
-				url="https://api.github.com/repos/${REPO}/releases/latest"
+find_fan_package_name() {
+	for name in "$@"; do
+		case "$name" in
+			fancontrol_*_"${ARCH}".ipk)
+				[ "$EXT" = "ipk" ] || continue
+				printf '%s\n' "$name"
+				return 0
 				;;
-			continuous)
-				url="https://api.github.com/repos/${REPO}/releases/tags/continuous"
+			fancontrol-*.apk)
+				[ "$EXT" = "apk" ] || continue
+				printf '%s\n' "$name"
+				return 0
 				;;
 		esac
-
-		json="$(fetch "$url" 2>/dev/null)" || continue
-		if release_usable "$json"; then
-			printf '%s' "$json"
-			return 0
-		fi
 	done
-
-	echo "No installable release found for ${ARCH} (.${EXT})." >&2
-	echo "Check https://github.com/${REPO}/releases" >&2
-	exit 1
-}
-
-find_asset_url() {
-	json="$1"
-	asset_kind="$2"
-
-	case "$asset_kind" in
-		fancontrol)
-			if [ "$EXT" = "apk" ]; then
-				printf '%s' "$json" \
-					| grep -oE '"https://[^"]+/fancontrol-[^"]+\.apk"' \
-					| head -n1 \
-					| tr -d '"'
-				return 0
-			fi
-			printf '%s' "$json" \
-				| grep -oE "\"https://[^\"]+/fancontrol_[^\"]+_${ARCH}\\.ipk\"" \
-				| head -n1 \
-				| tr -d '"'
-			;;
-		luci)
-			if [ "$EXT" = "apk" ]; then
-				printf '%s' "$json" \
-					| grep -oE '"https://[^"]+/luci-app-fancontrol-[^"]+\.apk"' \
-					| head -n1 \
-					| tr -d '"'
-				return 0
-			fi
-			printf '%s' "$json" \
-				| grep -oE '"https://[^"]+/luci-app-fancontrol_[^"]+_all\.ipk"' \
-				| head -n1 \
-				| tr -d '"'
-			;;
-	esac
-}
-
-find_bundle_url() {
-	json="$1"
-	label="$(release_label_for_arch "$ARCH")"
-
-	for name in "fancontrol-${ARCH}-packages.tar.gz" "fancontrol-${label}-packages.tar.gz"; do
-		url="$(printf '%s' "$json" \
-			| grep -oE "\"https://[^\"]+/${name}\"" \
-			| head -n1 \
-			| tr -d '"')"
-		if [ -n "$url" ]; then
-			printf '%s\n' "$url"
-			return 0
-		fi
-	done
-
 	return 1
 }
 
-find_packages_in_dir() {
-	dir="$1"
-
-	if [ "$EXT" = "apk" ]; then
-		FAN_PKG="$(find "$dir" -maxdepth 1 -name 'fancontrol-*.apk' | head -n1)"
-		LUCI_PKG="$(find "$dir" -maxdepth 1 -name 'luci-app-fancontrol-*.apk' | head -n1)"
-	else
-		FAN_PKG="$(find "$dir" -maxdepth 1 -name "fancontrol_*_${ARCH}.ipk" | head -n1)"
-		LUCI_PKG="$(find "$dir" -maxdepth 1 -name 'luci-app-fancontrol_*_all.ipk' | head -n1)"
-	fi
-
-	if [ -z "$FAN_PKG" ] || [ -z "$LUCI_PKG" ]; then
-		return 1
-	fi
+find_luci_package_name() {
+	for name in "$@"; do
+		case "$name" in
+			luci-app-fancontrol_*_all.ipk)
+				[ "$EXT" = "ipk" ] || continue
+				printf '%s\n' "$name"
+				return 0
+				;;
+			luci-app-fancontrol-*.apk)
+				[ "$EXT" = "apk" ] || continue
+				printf '%s\n' "$name"
+				return 0
+				;;
+		esac
+	done
+	return 1
 }
 
 install_packages() {
@@ -215,51 +149,45 @@ case "$PKG_MGR" in
 	apk) EXT=apk ;;
 esac
 
-JSON="$(release_json)"
-FAN_URL="$(find_asset_url "$JSON" fancontrol)"
-LUCI_URL="$(find_asset_url "$JSON" luci)"
+JSON="$(fetch "https://api.github.com/repos/${REPO}/releases/latest")"
+TAG="$(release_tag "$JSON")"
+if [ -z "$TAG" ]; then
+	echo "Unable to resolve latest release tag." >&2
+	exit 1
+fi
+
+# shellcheck disable=SC2086
+set -- $(release_asset_names "$JSON")
+
+FAN_NAME="$(find_fan_package_name "$@")" || FAN_NAME=""
+LUCI_NAME="$(find_luci_package_name "$@")" || LUCI_NAME=""
+
+if [ -z "$FAN_NAME" ] || [ -z "$LUCI_NAME" ]; then
+	echo "No ${EXT} packages for architecture '${ARCH}' in latest release ${TAG}." >&2
+	echo "Check https://github.com/${REPO}/releases/latest" >&2
+	if [ "$#" -gt 0 ]; then
+		echo "Available package assets:" >&2
+		for name in "$@"; do
+			echo "  - $name" >&2
+		done
+	fi
+	exit 1
+fi
 
 mkdir -p "$TMPDIR"
 trap 'rm -rf "$TMPDIR"' EXIT INT HUP TERM
 
+FAN_PKG="$TMPDIR/fancontrol.${EXT}"
+LUCI_PKG="$TMPDIR/luci-app-fancontrol.${EXT}"
+
+echo "Release: ${TAG}"
 echo "Architecture: ${ARCH}"
 echo "Package manager: ${PKG_MGR}"
-
-if [ -n "$FAN_URL" ] && [ -n "$LUCI_URL" ]; then
-	FAN_PKG="$TMPDIR/fancontrol.${EXT}"
-	LUCI_PKG="$TMPDIR/luci-app-fancontrol.${EXT}"
-
-	echo "Downloading fancontrol..."
-	download "$FAN_URL" "$FAN_PKG"
-	echo "Downloading luci-app-fancontrol..."
-	download "$LUCI_URL" "$LUCI_PKG"
-	install_packages "$FAN_PKG" "$LUCI_PKG"
-else
-	BUNDLE_URL="$(find_bundle_url "$JSON")"
-	if [ -z "$BUNDLE_URL" ]; then
-		echo "No ${EXT} packages for architecture '${ARCH}' in the selected release." >&2
-		printf '%s' "$JSON" \
-			| sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-			| grep -E '\.(ipk|apk|tar\.gz)$' >&2 || true
-		exit 1
-	fi
-
-	BUNDLE="$TMPDIR/bundle.tar.gz"
-	EXTRACT_DIR="$TMPDIR/bundle"
-
-	echo "Downloading package bundle..."
-	download "$BUNDLE_URL" "$BUNDLE"
-	mkdir -p "$EXTRACT_DIR"
-	tar -xzf "$BUNDLE" -C "$EXTRACT_DIR"
-
-	if ! find_packages_in_dir "$EXTRACT_DIR"; then
-		echo "Bundle did not contain fancontrol + luci-app-fancontrol (.${EXT}) for ${ARCH}." >&2
-		ls -la "$EXTRACT_DIR" >&2 || true
-		exit 1
-	fi
-
-	install_packages "$FAN_PKG" "$LUCI_PKG"
-fi
+echo "Downloading fancontrol package..."
+download "$(release_download_url "$TAG" "$FAN_NAME")" "$FAN_PKG"
+echo "Downloading luci-app-fancontrol package..."
+download "$(release_download_url "$TAG" "$LUCI_NAME")" "$LUCI_PKG"
+install_packages "$FAN_PKG" "$LUCI_PKG"
 
 if [ -x /etc/init.d/fancontrol ]; then
 	/etc/init.d/fancontrol enable
