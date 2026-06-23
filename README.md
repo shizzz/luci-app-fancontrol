@@ -26,7 +26,7 @@ Run on the router (auto-detects `opkg`/`.ipk` or `apk`/`.apk`):
 
 ```sh
 wget -O /tmp/install-fancontrol.sh \
-  https://raw.githubusercontent.com/shizzz/luci-app-fancontrol/develop/scripts/install-fancontrol.sh
+  https://raw.githubusercontent.com/shizzz/luci-app-fancontrol/main/scripts/install-fancontrol.sh
 sh /tmp/install-fancontrol.sh
 ```
 
