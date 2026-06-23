@@ -2,29 +2,34 @@ include $(TOPDIR)/rules.mk
 
 FANCONTROL_UPSTREAM_REPO:=shizzz/openwrt-fancontrol
 
-FANCONTROL_RELEASE_MK:=$(shell sh $(CURDIR)/../scripts/resolve-fancontrol-release.sh $(ARCH) $(FANCONTROL_UPSTREAM_REPO) $(DL_DIR))
-ifeq ($(FANCONTROL_RELEASE_MK),)
-  $(error Unable to resolve latest fancontrol release for ARCH=$(ARCH))
-endif
-include $(FANCONTROL_RELEASE_MK)
-
 PKG_NAME:=fancontrol
-PKG_VERSION:=$(FANCONTROL_VERSION)
 PKG_RELEASE:=1
 
 PKG_MAINTAINER:=LuCI FanControl Contributors
 PKG_LICENSE:=GPL-2.0-or-later
 
+ifdef ARCH
+FANCONTROL_RELEASE_MK:=$(shell sh $(CURDIR)/scripts/resolve-fancontrol-release.sh $(ARCH) $(FANCONTROL_UPSTREAM_REPO) $(DL_DIR))
+ifeq ($(FANCONTROL_RELEASE_MK),)
+  $(error Unable to resolve latest fancontrol release for ARCH=$(ARCH))
+endif
+include $(FANCONTROL_RELEASE_MK)
+PKG_VERSION:=$(FANCONTROL_VERSION)
 PKGARCH:=$(ARCH)
+else
+PKG_VERSION:=0.0.0
+endif
 
 include $(INCLUDE_DIR)/package.mk
 
+ifdef ARCH
 define Download/fancontrol
   FILE:=$(FANCONTROL_ASSET)
   URL:=$(FANCONTROL_URL)
   HASH:=$(FANCONTROL_HASH)
 endef
 $(eval $(call Download,fancontrol))
+endif
 
 define Package/fancontrol
   SECTION:=utils
