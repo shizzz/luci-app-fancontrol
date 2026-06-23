@@ -52,10 +52,10 @@ jobs:
           echo "matrix=${JSON}" >> "$GITHUB_OUTPUT"
           echo "labels=${LABELS# }" >> "$GITHUB_OUTPUT"
           echo "Discovered matrix: ${JSON}"
-          echo "Discovered labels: ${LABELS# }"
+          echo "Discovered labels:${LABELS}"
 
   build:
-    name: ${{ matrix.label }} ${{ matrix.variant }} (${{ matrix.sdk }})
+    name: ${{ matrix.label }} / ${{ matrix.variant }} (${{ matrix.sdk }})
     needs: discover
     runs-on: ubuntu-latest
     strategy:
@@ -95,18 +95,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
 
-      - name: Bundle packages per architecture
+      - name: Bundle per-architecture package archives
         run: |
-          chmod +x .github/scripts/bundle-release-packages.sh
-          sh .github/scripts/bundle-release-packages.sh ${{ needs.discover.outputs.labels }}
+          chmod +x .github/scripts/bundle-arch-packages.sh
+          sh .github/scripts/bundle-arch-packages.sh ${{ needs.discover.outputs.labels }}
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/bundles/*.tar.gz
+          files: dist/fancontrol-*-packages.tar.gz
           generate_release_notes: true

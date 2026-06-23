@@ -54,18 +54,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
-          merge-multiple: true
 
-      - name: Flatten package files for release assets
+      - name: Bundle package archive (apk + ipk)
         run: |
-          set -e
-          mkdir -p dist/release
-          find dist -type f \( -name '*.ipk' -o -name '*.apk' \) -exec cp {} dist/release/ \;
-          ls -la dist/release/
+          chmod +x .github/scripts/bundle-arch-packages.sh
+          DEVELOP_BUNDLE=1 DEVELOP_LABEL=aarch64_cortex-a53 sh .github/scripts/bundle-arch-packages.sh
 
       - name: Publish continuous pre-release
         uses: softprops/action-gh-release@v2
@@ -73,5 +73,5 @@ jobs:
           tag_name: continuous
           name: Continuous build
           prerelease: true
-          files: dist/release/*
+          files: dist/fancontrol-aarch64_cortex-a53-packages.tar.gz
           generate_release_notes: true
