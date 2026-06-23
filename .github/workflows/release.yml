@@ -1,77 +1,115 @@
-#!/bin/sh
-# Download and install the latest fancontrol + luci-app-fancontrol packages.
-#
-# Usage (on the router):
-#   wget -O /tmp/install-fancontrol.sh \
-#     https://raw.githubusercontent.com/shizzz/luci-app-fancontrol/develop/scripts/install-fancontrol.sh
-#   sh /tmp/install-fancontrol.sh
-#
-# Supports opkg (.ipk) and apk (.apk). For apk, packages are installed with
-# --allow-untrusted because they are not signed by the official OpenWrt feed.
+name: Release Build
 
-set -e
+on:
+  push:
+    tags:
+      - 'v*'
 
-REPO="${FANCONTROL_REPO:-shizzz/luci-app-fancontrol}"
-TMPDIR="${TMPDIR:-/tmp/fancontrol-install.$$}"
+permissions:
+  contents: write
 
-fetch() {
-	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL "$1"
-	elif command -v wget >/dev/null 2>&1; then
-		wget -qO- "$1"
-	else
-		echo "Install curl or wget first." >&2
-		exit 1
-	fi
-}
+jobs:
+  discover:
+    name: Discover architectures
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      labels: ${{ steps.set-matrix.outputs.labels }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-download() {
-	url="$1"
-	dest="$2"
-	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL -o "$dest" "$url"
-	elif command -v wget >/dev/null 2>&1; then
-		wget -qO "$dest" "$url"
-	else
-		echo "Install curl or wget first." >&2
-		exit 1
-	fi
-}
+      - name: Build architecture matrix from upstream release assets
+        id: set-matrix
+        run: |
+          set -e
+          VERSION="$(sh fancontrol/scripts/latest-fancontrol-release.sh shizzz/openwrt-fancontrol)"
+          API="https://api.github.com/repos/shizzz/openwrt-fancontrol/releases/tags/v${VERSION}"
+          ASSETS="$(curl -fsSL "$API" | jq -r '.assets[].name' | grep '^openwrt-fancontrol-linux-.*\.tar\.gz$' || true)"
 
-detect_pkg_mgr() {
-	if command -v opkg >/dev/null 2>&1; then
-		echo opkg
-	elif command -v apk >/dev/null 2>&1; then
-		echo apk
-	else
-		echo "Neither opkg nor apk found on this system." >&2
-		exit 1
-	fi
-}
+          if [ -z "$ASSETS" ]; then
+            echo "No release assets found for openwrt-fancontrol v${VERSION}" >&2
+            exit 1
+          fi
 
-detect_arch() {
-	if [ -r /etc/openwrt_release ]; then
-		# shellcheck disable=SC1091
-			Name: Publish GitHub Release
-    needs: build
+          JSON='{"include":[]}'
+          LABELS=""
+          for asset in $ASSETS; do
+            suffix="${asset#openwrt-fancontrol-linux-}"
+            suffix="${suffix%.tar.gz}"
+            sdk_arch="$(sh fancontrol/scripts/sdk-arch-for-asset.sh "$suffix")"
+            JSON="$(printf '%s' "$JSON" | jq -c \
+              --arg sdk_main "${sdk_arch}-main" \
+              --arg sdk_stable "${sdk_arch}-openwrt-24.10" \
+              --arg label "$suffix" \
+              '.include += [
+                {"sdk": $sdk_main, "label": $label, "variant": "snapshot"},
+                {"sdk": $sdk_stable, "label": $label, "variant": "openwrt-24.10"}
+              ]')"
+            LABELS="${LABELS} ${suffix}"
+          done
+
+          echo "matrix=${JSON}" >> "$GITHUB_OUTPUT"
+          echo "labels=${LABELS# }" >> "$GITHUB_OUTPUT"
+          echo "Discovered matrix: ${JSON}"
+          echo "Discovered labels:${LABELS}"
+
+  build:
+    name: ${{ matrix.label }} / ${{ matrix.variant }} (${{ matrix.sdk }})
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.sdk }}
+          FEEDNAME: fancontrol
+          PACKAGES: fancontrol luci-app-fancontrol
+
+      - name: Verify packages were built
+        env:
+          FEEDNAME: fancontrol
+        run: sh .github/scripts/verify-built-packages.sh
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.label }}-${{ matrix.variant }}-packages
+          path: |
+            bin/packages/**/fancontrol/fancontrol*
+            bin/packages/**/fancontrol/luci-app-fancontrol*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [discover, build]
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
-          merge-multiple: true
 
-      - name: Flatten package files for release assets
+      - name: Bundle per-architecture package archives
         run: |
-          set -e
-          mkdir -p dist/release
-          find dist -type f \( -name '*.ipk' -o -name '*.apk' \) -exec cp {} dist/release/ \;
-          ls -la dist/release/
+          chmod +x .github/scripts/bundle-arch-packages.sh
+          sh .github/scripts/bundle-arch-packages.sh ${{ needs.discover.outputs.labels }}
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/release/*
+          files: dist/fancontrol-*-packages.tar.gz
           generate_release_notes: true
