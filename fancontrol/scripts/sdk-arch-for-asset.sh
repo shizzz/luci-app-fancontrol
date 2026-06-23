@@ -18,8 +18,8 @@ case "$SUFFIX" in
 	amd64) printf '%s\n' "x86_64" ;;
 	arm64) printf '%s\n' "aarch64_cortex-a53" ;;
 	armv7) printf '%s\n' "arm_cortex-a9" ;;
-	mipsel) printf '%s\n' "mips_24kc" ;;
-	mips64el) printf '%s\n' "mips64" ;;
+	mipsel) printf '%s\n' "mipsel_24kc" ;;
+	mips64el) printf '%s\n' "mips64el_mips64r2" ;;
 	*)
 		# Fall back to the suffix itself; gh-action-sdk may accept it.
 		printf '%s\n' "$SUFFIX"

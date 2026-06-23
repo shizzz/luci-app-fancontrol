@@ -27,6 +27,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Prefetch fancontrol upstream metadata
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: sh fancontrol/scripts/prefetch-fancontrol-release.sh shizzz/openwrt-fancontrol
+
       - name: Build packages
         uses: openwrt/gh-action-sdk@main
         env:

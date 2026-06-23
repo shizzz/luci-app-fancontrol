@@ -2,3 +2,4 @@ bin/
 logs/
 *.ipk
 *.apk
+fancontrol/files/.upstream-release/
