@@ -28,30 +28,19 @@ jobs:
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ matrix.sdk }}
+          FEEDNAME: fancontrol
           PACKAGES: fancontrol luci-app-fancontrol
 
       - name: Verify packages were built
-        run: |
-          set -e
-          ipk_count="$(find bin/packages -name '*.ipk' 2>/dev/null | wc -l | tr -d ' ')"
-          apk_count="$(find bin/packages -name '*.apk' 2>/dev/null | wc -l | tr -d ' ')"
-          echo "Built ${ipk_count} ipk and ${apk_count} apk file(s)"
-          if [ "$ipk_count" -eq 0 ] && [ "$apk_count" -eq 0 ]; then
-            echo "No packages were produced" >&2
-            exit 1
-          fi
-          find bin/packages \( -name '*.ipk' -o -name '*.apk' \) -ls
+        env:
+          FEEDNAME: fancontrol
+        run: sh .github/scripts/verify-built-packages.sh
 
-      - name: Upload IPK artifacts
+      - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.label }}-ipk
-          path: bin/packages/**/packages/*.ipk
+          name: ${{ matrix.label }}-packages
+          path: |
+            bin/packages/**/fancontrol/fancontrol*
+            bin/packages/**/fancontrol/luci-app-fancontrol*
           if-no-files-found: error
-
-      - name: Upload APK artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.label }}-apk
-          path: bin/packages/**/packages/*.apk
-          if-no-files-found: ignore

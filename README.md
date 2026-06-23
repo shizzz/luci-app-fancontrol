@@ -60,19 +60,18 @@ make package/fancontrol/compile V=s
 make package/luci-app-fancontrol/compile V=s
 ```
 
-The `fancontrol` package resolves the latest upstream release, downloads `hashes.mk`, and selects the correct binary for the target `ARCH` using `scripts/resolve-fancontrol-release.sh`.
+The `fancontrol` package resolves the latest upstream release, downloads `hashes.mk`, and selects the correct binary for the target `ARCH` using `fancontrol/scripts/resolve-fancontrol-release.sh`.
 
 ## GitHub Actions
 
-- **`develop` branch** — parallel SDK builds for `aarch64_cortex-a53` against OpenWrt snapshot (`-main`) and stable 24.10 (`-openwrt-24.10`); uploads `.ipk` and `.apk` artifacts
+- **`develop` branch** — parallel SDK builds for `aarch64_cortex-a53` against OpenWrt snapshot (`-main`) and stable 24.10 (`-openwrt-24.10`); uploads `fancontrol` and `luci-app-fancontrol` from `bin/packages/*/<feed>/`
 - **`v*` tags** — discovers all architectures published in the matching upstream fancontrol release, builds packages for each against OpenWrt 24.10 SDK, and publishes a GitHub Release
 
 ## Project layout
 
 ```
-fancontrol/                 # Binary package (init script, downloaded binary)
+fancontrol/                 # Binary package (init script, downloaded binary, build helpers)
 luci-app-fancontrol/        # LuCI application (views, ACL, menu)
-scripts/                    # Architecture resolution helpers
 .github/workflows/          # CI build and release automation
 ```
 

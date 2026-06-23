@@ -13,4 +13,10 @@ PKG_LICENSE:=GPL-2.0-or-later
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
+# gh-action-sdk may skip fancontrol in its per-package loop; ensure the daemon
+# package is compiled before this arch-all LuCI app is packaged.
+define Build/Compile
+	$(MAKE) $(MAKE_FLAGS) package/fancontrol/compile
+endef
+
 # call BuildPackage - OpenWrt buildroot signature
