@@ -7,8 +7,16 @@ on:
 
 jobs:
   build:
-    name: aarch64 build
+    name: ${{ matrix.label }} (${{ matrix.sdk }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: snapshot
+            sdk: aarch64_cortex-a53-main
+          - label: openwrt-24.10
+            sdk: aarch64_cortex-a53-openwrt-24.10
 
     steps:
       - name: Checkout
@@ -19,19 +27,31 @@ jobs:
       - name: Build packages
         uses: openwrt/gh-action-sdk@main
         env:
-          ARCH: aarch64
+          ARCH: ${{ matrix.sdk }}
           PACKAGES: fancontrol luci-app-fancontrol
+
+      - name: Verify packages were built
+        run: |
+          set -e
+          ipk_count="$(find bin/packages -name '*.ipk' 2>/dev/null | wc -l | tr -d ' ')"
+          apk_count="$(find bin/packages -name '*.apk' 2>/dev/null | wc -l | tr -d ' ')"
+          echo "Built ${ipk_count} ipk and ${apk_count} apk file(s)"
+          if [ "$ipk_count" -eq 0 ] && [ "$apk_count" -eq 0 ]; then
+            echo "No packages were produced" >&2
+            exit 1
+          fi
+          find bin/packages \( -name '*.ipk' -o -name '*.apk' \) -ls
 
       - name: Upload IPK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: aarch64-ipk
+          name: ${{ matrix.label }}-ipk
           path: bin/packages/**/packages/*.ipk
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: aarch64-apk
+          name: ${{ matrix.label }}-apk
           path: bin/packages/**/packages/*.apk
-          if-no-files-found: warn
+          if-no-files-found: ignore

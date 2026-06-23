@@ -64,8 +64,8 @@ The `fancontrol` package resolves the latest upstream release, downloads `hashes
 
 ## GitHub Actions
 
-- **`develop` branch** — builds packages for `aarch64` on every push; uploads `.ipk` and `.apk` artifacts
-- **`v*` tags** — discovers all architectures published in the matching upstream fancontrol release, builds packages for each, and publishes a GitHub Release
+- **`develop` branch** — parallel SDK builds for `aarch64_cortex-a53` against OpenWrt snapshot (`-main`) and stable 24.10 (`-openwrt-24.10`); uploads `.ipk` and `.apk` artifacts
+- **`v*` tags** — discovers all architectures published in the matching upstream fancontrol release, builds packages for each against OpenWrt 24.10 SDK, and publishes a GitHub Release
 
 ## Project layout
 

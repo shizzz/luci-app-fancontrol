@@ -31,20 +31,20 @@ jobs:
             exit 1
           fi
 
-          ARCHS=""
+          JSON='{"include":[]}'
           for asset in $ASSETS; do
             suffix="${asset#openwrt-fancontrol-linux-}"
             suffix="${suffix%.tar.gz}"
             sdk_arch="$(sh scripts/sdk-arch-for-asset.sh "$suffix")"
-            ARCHS="${ARCHS} ${sdk_arch}"
+            JSON="$(printf '%s' "$JSON" | jq -c --arg sdk "${sdk_arch}-openwrt-24.10" --arg label "$suffix" \
+              '.include += [{"sdk": $sdk, "label": $label}]')"
           done
 
-          JSON="$(printf '%s\n' $ARCHS | awk 'NF' | jq -R . | jq -s -c '{arch:.}')"
           echo "matrix=${JSON}" >> "$GITHUB_OUTPUT"
           echo "Discovered matrix: ${JSON}"
 
   build:
-    name: ${{ matrix.arch }} build
+    name: ${{ matrix.label }} (${{ matrix.sdk }})
     needs: discover
     runs-on: ubuntu-latest
     strategy:
@@ -60,22 +60,34 @@ jobs:
       - name: Build packages
         uses: openwrt/gh-action-sdk@main
         env:
-          ARCH: ${{ matrix.arch }}
+          ARCH: ${{ matrix.sdk }}
           PACKAGES: fancontrol luci-app-fancontrol
+
+      - name: Verify packages were built
+        run: |
+          set -e
+          ipk_count="$(find bin/packages -name '*.ipk' 2>/dev/null | wc -l | tr -d ' ')"
+          apk_count="$(find bin/packages -name '*.apk' 2>/dev/null | wc -l | tr -d ' ')"
+          echo "Built ${ipk_count} ipk and ${apk_count} apk file(s)"
+          if [ "$ipk_count" -eq 0 ] && [ "$apk_count" -eq 0 ]; then
+            echo "No packages were produced" >&2
+            exit 1
+          fi
+          find bin/packages \( -name '*.ipk' -o -name '*.apk' \) -ls
 
       - name: Upload IPK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.arch }}-ipk
+          name: ${{ matrix.label }}-ipk
           path: bin/packages/**/packages/*.ipk
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.arch }}-apk
+          name: ${{ matrix.label }}-apk
           path: bin/packages/**/packages/*.apk
-          if-no-files-found: warn
+          if-no-files-found: ignore
 
   release:
     name: Publish GitHub Release
