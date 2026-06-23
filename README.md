@@ -32,9 +32,6 @@ sh /tmp/install-fancontrol.sh
 
 The script resolves the latest `fancontrol` and `luci-app-fancontrol` packages for your architecture from GitHub releases, installs them, and enables the service.
 
-- **opkg** — installs `.ipk` files with `opkg install`
-- **apk** — installs `.apk` files with `apk add --allow-untrusted` (packages are not signed by the official feed)
-
 After install, open **Services → Fan Control** in LuCI.
 
 ## Packages
