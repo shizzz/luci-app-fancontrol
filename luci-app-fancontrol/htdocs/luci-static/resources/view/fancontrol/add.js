@@ -19,6 +19,14 @@ return view.extend({
 		const state = {
 			sectionName: '',
 			mode: 'pid',
+			setpoint: '60',
+			kp: '2.0',
+			ki: '0.5',
+			kd: '1.0',
+			min_pwm: '50',
+			max_pwm: '255',
+			fixed_pwm: '128',
+			interval_sec: '1.0',
 			thermalManual: false,
 			pwmManual: false,
 			thermalPath: thermalZones.length ? thermalZones[0].path : '',
@@ -147,6 +155,93 @@ return view.extend({
 
 		const forceFlag = E('input', { type: 'checkbox' });
 
+		const pidFields = E('div', { 'class': 'cbi-section-fancontrol-mode-fields' }, [
+			E('label', {}, [_('Setpoint (°C)')]),
+			E('input', {
+				'class': 'cbi-input-text',
+				'type': 'text',
+				'value': state.setpoint,
+				'input': function(ev) { state.setpoint = ev.target.value; }
+			}),
+			E('br'),
+			E('label', { 'style': 'margin-top: 0.75em; display: block;' }, [_('Kp')]),
+			E('input', {
+				'class': 'cbi-input-text',
+				'type': 'text',
+				'value': state.kp,
+				'input': function(ev) { state.kp = ev.target.value; }
+			}),
+			E('br'),
+			E('label', { 'style': 'margin-top: 0.75em; display: block;' }, [_('Ki')]),
+			E('input', {
+				'class': 'cbi-input-text',
+				'type': 'text',
+				'value': state.ki,
+				'input': function(ev) { state.ki = ev.target.value; }
+			}),
+			E('br'),
+			E('label', { 'style': 'margin-top: 0.75em; display: block;' }, [_('Kd')]),
+			E('input', {
+				'class': 'cbi-input-text',
+				'type': 'text',
+				'value': state.kd,
+				'input': function(ev) { state.kd = ev.target.value; }
+			}),
+			E('br'),
+			E('label', { 'style': 'margin-top: 0.75em; display: block;' }, [_('Minimum PWM (0–255)')]),
+			E('input', {
+				'class': 'cbi-input-text',
+				'type': 'text',
+				'value': state.min_pwm,
+				'input': function(ev) { state.min_pwm = ev.target.value; }
+			}),
+			E('br'),
+			E('label', { 'style': 'margin-top: 0.75em; display: block;' }, [_('Maximum PWM (0–255)')]),
+			E('input', {
+				'class': 'cbi-input-text',
+				'type': 'text',
+				'value': state.max_pwm,
+				'input': function(ev) { state.max_pwm = ev.target.value; }
+			}),
+			E('br'),
+			E('label', { 'style': 'margin-top: 0.75em; display: block;' }, [_('Control interval (seconds)')]),
+			E('input', {
+				'class': 'cbi-input-text',
+				'type': 'text',
+				'value': state.interval_sec,
+				'input': function(ev) { state.interval_sec = ev.target.value; }
+			})
+		]);
+
+		const fixedPwmField = E('div', { 'class': 'cbi-section-fancontrol-mode-fields', 'style': 'display: none;' }, [
+			E('label', {}, [_('Fixed PWM (0–255)')]),
+			E('input', {
+				'class': 'cbi-input-text',
+				'type': 'text',
+				'value': state.fixed_pwm,
+				'input': function(ev) { state.fixed_pwm = ev.target.value; }
+			})
+		]);
+
+		function syncModeFields() {
+			const isPid = state.mode === 'pid';
+			pidFields.style.display = isPid ? '' : 'none';
+			fixedPwmField.style.display = isPid ? 'none' : '';
+		}
+
+		const modeSelect = E('select', {
+			'class': 'cbi-input-select',
+			'change': function(ev) {
+				state.mode = ev.target.value;
+				syncModeFields();
+			}
+		}, [
+			E('option', { value: 'pid', selected: 'selected' }, [_('PID')]),
+			E('option', { value: 'fixed' }, [_('Fixed PWM')])
+		]);
+
+		syncModeFields();
+
 		return E([
 			E('link', { rel: 'stylesheet', href: L.resource('fancontrol.css') }),
 			E('h2', {}, [_('Add Fan')]),
@@ -173,13 +268,9 @@ return view.extend({
 			E('div', { 'class': 'cbi-section cbi-section-fancontrol-wizard-step' }, [
 				E('h3', {}, [_('Initial settings')]),
 				E('label', {}, [_('Control mode')]),
-				E('select', {
-					'class': 'cbi-input-select',
-					'change': function(ev) { state.mode = ev.target.value; }
-				}, [
-					E('option', { value: 'pid', selected: 'selected' }, [_('PID')]),
-					E('option', { value: 'fixed' }, [_('Fixed PWM')])
-				])
+				modeSelect,
+				pidFields,
+				fixedPwmField
 			]),
 			E('div', { 'class': 'cbi-section cbi-section-fancontrol-wizard-step' }, [
 				E('h3', {}, [_('Validation')]),
@@ -210,14 +301,14 @@ return view.extend({
 								uci.add('fancontrol', 'fancontrol', state.sectionName);
 								uci.set('fancontrol', state.sectionName, 'enabled', '1');
 								uci.set('fancontrol', state.sectionName, 'mode', state.mode);
-								uci.set('fancontrol', state.sectionName, 'setpoint', '60');
-								uci.set('fancontrol', state.sectionName, 'kp', '2.0');
-								uci.set('fancontrol', state.sectionName, 'ki', '0.5');
-								uci.set('fancontrol', state.sectionName, 'kd', '1.0');
-								uci.set('fancontrol', state.sectionName, 'min_pwm', '50');
-								uci.set('fancontrol', state.sectionName, 'max_pwm', '255');
-								uci.set('fancontrol', state.sectionName, 'fixed_pwm', '128');
-								uci.set('fancontrol', state.sectionName, 'interval_sec', '1.0');
+								uci.set('fancontrol', state.sectionName, 'setpoint', state.setpoint);
+								uci.set('fancontrol', state.sectionName, 'kp', state.kp);
+								uci.set('fancontrol', state.sectionName, 'ki', state.ki);
+								uci.set('fancontrol', state.sectionName, 'kd', state.kd);
+								uci.set('fancontrol', state.sectionName, 'min_pwm', state.min_pwm);
+								uci.set('fancontrol', state.sectionName, 'max_pwm', state.max_pwm);
+								uci.set('fancontrol', state.sectionName, 'fixed_pwm', state.fixed_pwm);
+								uci.set('fancontrol', state.sectionName, 'interval_sec', state.interval_sec);
 								uci.set('fancontrol', state.sectionName, 'thermal_path', state.thermalPath);
 								uci.set('fancontrol', state.sectionName, 'pwm_path', state.pwmPath);
 								uci.set('fancontrol', state.sectionName, 'pwm_enable_path', state.pwmEnablePath);
@@ -225,7 +316,7 @@ return view.extend({
 								uci.set('fancontrol', state.sectionName, 'debug', '0');
 
 								return uci.save().then(function() {
-									window.location = L.url('admin/services/fancontrol/edit/' + state.sectionName);
+									window.location = L.url('admin/services/fancontrol/edit', state.sectionName);
 								});
 							});
 						});

@@ -10,7 +10,10 @@ return view.extend({
 		return uci.load('fancontrol');
 	},
 
-	render(sectionId) {
+	render() {
+		const requestPath = L.env.requestpath;
+		const sectionId = requestPath[requestPath.length - 1];
+
 		if (!sectionId || !uci.get('fancontrol', sectionId))
 			return E('p', {}, [_('Unknown fan section.')]);
 
