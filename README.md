@@ -1,87 +1,48 @@
 # LuCI FanControl
 
-LuCI application and OpenWrt packaging for [openwrt-fancontrol](https://github.com/shizzz/openwrt-fancontrol).
+Web interface for [openwrt-fancontrol](https://github.com/shizzz/openwrt-fancontrol) on OpenWrt 24.x–25.x.
 
-Provides a web interface to configure, monitor, and manage PWM fan control on OpenWrt 24.x–25.x. The Go controller binary is downloaded automatically during package build from upstream GitHub releases.
+The daemon reads temperature from sysfs, adjusts PWM fan outputs using PID or fixed-speed control, and stores settings in UCI. LuCI lets you configure fans, watch live readings and charts, validate sysfs paths, and manage the service without editing config files by hand.
 
-## Features
+## Screenshots
 
-- **Dashboard** — live temperature and PWM readings from sysfs, refreshed every second
-- **Live charts** — rolling temperature and PWM history per fan (client-side canvas charts)
-- **Fan editor** — full UCI configuration with PID and fixed PWM modes
-- **Add fan wizard** — discovers thermal zones and hwmon PWM outputs under `/sys`
-- **Validation** — checks sysfs paths and write permissions before saving, with optional force override
-- **Service management** — start/stop/restart and boot enable/disable via procd init script
+**Dashboard** — live temperature, PWM, and rolling charts per fan (refreshed every second).
+
+![Dashboard](img/dashboard.png)
+
+**Add Fan** — discovers thermal zones and PWM outputs under `/sys`, or accepts manual paths.
+
+![Add Fan](img/add.png)
+
+**Service** — start/stop/restart and boot enable/disable via procd.
+
+![Service](img/service.png)
+
+## Install
+
+Pre-built packages are published on each push to `develop` as the [`continuous`](https://github.com/shizzz/luci-app-fancontrol/releases/tag/continuous) pre-release. Tagged `v*` releases replace it once they appear.
+
+Run on the router (auto-detects `opkg`/`.ipk` or `apk`/`.apk`):
+
+```sh
+wget -O /tmp/install-fancontrol.sh \
+  https://raw.githubusercontent.com/shizzz/luci-app-fancontrol/develop/scripts/install-fancontrol.sh
+sh /tmp/install-fancontrol.sh
+```
+
+The script resolves the latest `fancontrol` and `luci-app-fancontrol` packages for your architecture from GitHub releases, installs them, and enables the service.
+
+- **opkg** — installs `.ipk` files with `opkg install`
+- **apk** — installs `.apk` files with `apk add --allow-untrusted` (packages are not signed by the official feed)
+
+After install, open **Services → Fan Control** in LuCI.
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| `fancontrol` | Init script and architecture-specific `openwrt-fancontrol` binary |
-| `luci-app-fancontrol` | LuCI web interface (architecture-independent) |
-
-## UCI configuration
-
-Each fan is a named section:
-
-```uci
-config fancontrol 'cpu'
-    option enabled '1'
-    option mode 'pid'
-    option setpoint '60'
-    option kp '2.0'
-    option ki '0.5'
-    option kd '1.0'
-    option min_pwm '50'
-    option max_pwm '255'
-    option interval_sec '1.0'
-    option thermal_path '/sys/class/thermal/thermal_zone0/temp'
-    option pwm_path '/sys/class/hwmon/hwmon0/pwm1'
-    option pwm_enable_path '/sys/class/hwmon/hwmon0/pwm1_enable'
-    option dry_run '0'
-    option debug '0'
-```
-
-Global options (including validation `force`) live in:
-
-```uci
-config globals 'globals'
-    option force '0'
-```
-
-## Building locally
-
-Add this repository as an OpenWrt feed, then build:
-
-```sh
-./scripts/feeds update -a
-./scripts/feeds install luci-app-fancontrol
-make package/fancontrol/compile V=s
-make package/luci-app-fancontrol/compile V=s
-```
-
-The `fancontrol` package resolves the latest upstream release, downloads `hashes.mk`, and selects the correct binary for the target `ARCH` using `fancontrol/scripts/resolve-fancontrol-release.sh`.
-
-## GitHub Actions
-
-- **`develop` branch** — parallel SDK builds for `aarch64_cortex-a53` against OpenWrt snapshot (`-main`) and stable 24.10 (`-openwrt-24.10`); uploads `fancontrol` and `luci-app-fancontrol` from `bin/packages/*/<feed>/`
-- **`v*` tags** — discovers all architectures published in the matching upstream fancontrol release, builds packages for each against OpenWrt 24.10 SDK, and publishes a GitHub Release
-
-## Project layout
-
-```
-fancontrol/                 # Binary package (init script, downloaded binary, build helpers)
-luci-app-fancontrol/        # LuCI application (views, ACL, menu)
-.github/workflows/          # CI build and release automation
-```
-
-## Status sources
-
-The LuCI UI does not communicate with the Go process directly. Monitoring and validation use:
-
-- **sysfs** — temperature and PWM readings
-- **UCI** — configuration
-- **init.d / procd** — service state
+| Package | Role |
+|---------|------|
+| `fancontrol` | Init script and architecture-specific daemon binary |
+| `luci-app-fancontrol` | LuCI web UI (architecture-independent) |
 
 ## License
 

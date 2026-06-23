@@ -5,6 +5,9 @@ on:
     branches:
       - develop
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: ${{ matrix.label }} (${{ matrix.sdk }})
@@ -44,3 +47,31 @@ jobs:
             bin/packages/**/fancontrol/fancontrol*
             bin/packages/**/fancontrol/luci-app-fancontrol*
           if-no-files-found: error
+
+  release:
+    name: Publish continuous pre-release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Flatten package files for release assets
+        run: |
+          set -e
+          mkdir -p dist/release
+          find dist -type f \( -name '*.ipk' -o -name '*.apk' \) -exec cp {} dist/release/ \;
+          ls -la dist/release/
+
+      - name: Publish continuous pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous build
+          prerelease: true
+          files: dist/release/*
+          generate_release_notes: true
